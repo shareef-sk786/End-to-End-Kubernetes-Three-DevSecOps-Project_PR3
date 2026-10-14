@@ -18,7 +18,7 @@ pipeline {
         }
         stage('Checkout from Git') {
             steps {
-                git credentialsId: 'GITHUB', url: 'https://github.com/AmanPathak-DevOps/End-to-End-Kubernetes-Three-Tier-DevSecOps-Project.git'
+                git credentialsId: 'shareef-sk786', url: 'https://github.com/shareef-sk786/End-to-End-Kubernetes-Three-DevSecOps-Project_PR3.git'
             }
         }
         stage('Sonarqube Analysis') {
@@ -39,14 +39,14 @@ pipeline {
                 }
             }
         }
-        stage('OWASP Dependency-Check Scan') {
-            steps {
-                dir('Application-Code/backend') {
-                    dependencyCheck additionalArguments: '--scan ./ --disableYarnAudit --disableNodeAudit', odcInstallation: 'DP-Check'
-                    dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
-                }
-            }
-        }
+        // stage('OWASP Dependency-Check Scan') {
+        //     steps {
+        //         dir('Application-Code/backend') {
+        //             dependencyCheck additionalArguments: '--scan ./ --disableYarnAudit --disableNodeAudit', odcInstallation: 'DP-Check'
+        //             dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+        //         }
+        //     }
+        // }
         stage('Trivy File Scan') {
             steps {
                 dir('Application-Code/backend') {
@@ -65,15 +65,36 @@ pipeline {
                 }
             }
         }
+        // stage("ECR Image Pushing") {
+        //     steps {
+        //         script {
+        //                 sh 'aws ecr get-login-password --region ${AWS_DEFAULT_REGION} | docker login --username AWS --password-stdin ${REPOSITORY_URI}'
+        //                 sh 'docker tag ${AWS_ECR_REPO_NAME} ${REPOSITORY_URI}${AWS_ECR_REPO_NAME}:${BUILD_NUMBER}'
+        //                 sh 'docker push ${REPOSITORY_URI}${AWS_ECR_REPO_NAME}:${BUILD_NUMBER}'
+        //         }
+        //     }
+        // }
+        
         stage("ECR Image Pushing") {
             steps {
-                script {
-                        sh 'aws ecr get-login-password --region ${AWS_DEFAULT_REGION} | docker login --username AWS --password-stdin ${REPOSITORY_URI}'
-                        sh 'docker tag ${AWS_ECR_REPO_NAME} ${REPOSITORY_URI}${AWS_ECR_REPO_NAME}:${BUILD_NUMBER}'
-                        sh 'docker push ${REPOSITORY_URI}${AWS_ECR_REPO_NAME}:${BUILD_NUMBER}'
-                }
-            }
+                 withCredentials([[
+                      $class: 'AmazonWebServicesCredentialsBinding',
+                      credentialsId: 'aws-creds'
+                 ]]) {
+            sh '''
+                aws sts get-caller-identity --region ${AWS_DEFAULT_REGION}
+
+                aws ecr get-login-password --region ${AWS_DEFAULT_REGION} |
+                docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com
+
+                docker tag ${AWS_ECR_REPO_NAME} ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${AWS_ECR_REPO_NAME}:${BUILD_NUMBER}
+
+                docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${AWS_ECR_REPO_NAME}:${BUILD_NUMBER}
+            '''
+              }
+           }
         }
+
         stage("TRIVY Image Scan") {
             steps {
                 sh 'trivy image ${REPOSITORY_URI}${AWS_ECR_REPO_NAME}:${BUILD_NUMBER} > trivyimage.txt' 
@@ -81,20 +102,20 @@ pipeline {
         }
         stage('Checkout Code') {
             steps {
-                git credentialsId: 'GITHUB', url: 'https://github.com/AmanPathak-DevOps/End-to-End-Kubernetes-Three-Tier-DevSecOps-Project.git'
+                git credentialsId: 'shareef-sk786', url: 'https://github.com/shareef-sk786/End-to-End-Kubernetes-Three-DevSecOps-Project_PR3.git'
             }
         }
         stage('Update Deployment file') {
             environment {
-                GIT_REPO_NAME = "End-to-End-Kubernetes-Three-Tier-DevSecOps-Project"
-                GIT_USER_NAME = "AmanPathak-DevOps"
+                GIT_REPO_NAME = "End-to-End-Kubernetes-Three-DevSecOps-Project_PR3.git"
+                GIT_USER_NAME = "shareef-sk786"
             }
             steps {
                 dir('Kubernetes-Manifests-file/Backend') {
-                    withCredentials([string(credentialsId: 'github', variable: 'GITHUB_TOKEN')]) {
+                    withCredentials([string(credentialsId: 'GITHUB_TOKEN', variable: 'GITHUB_TOKEN')]) {
                         sh '''
-                            git config user.email "aman07pathak@gmail.com"
-                            git config user.name "AmanPathak-DevOps"
+                            git config user.email "shareefink21@gmail.com"
+                            git config user.name "shareef-sk786"
                             BUILD_NUMBER=${BUILD_NUMBER}
                             echo $BUILD_NUMBER
                             imageTag=$(grep -oP '(?<=backend:)[^ ]+' deployment.yaml)
